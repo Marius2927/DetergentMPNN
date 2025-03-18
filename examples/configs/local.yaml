@@ -1,15 +1,15 @@
 platform:
-  accel: "gpu"
-  thermompnn_dir: "/home/hdieckhaus/scripts/ThermoMPNN"
+  accel: 'gpu'
+  thermompnn_dir: '/content/DetergentMPNN'
 
 data_loc:
-        megascale_csv: "/home/hdieckhaus/scripts/ThermoMPNN/data/mega_scale/Processed_K50_dG_datasets/Tsuboyama2023_Dataset2_Dataset3_20230416.csv"
-        megascale_splits: "/home/hdieckhaus/scripts/ThermoMPNN/data/mega_scale/mega_splits.pkl"
-        megascale_pdbs: "/home/hdieckhaus/scripts/ThermoMPNN/data/mega_scale/AlphaFold_model_PDBs/"
+        megascale_csv: 'DetergentMPNN/data/dummy.csv'
+        megascale_splits: 'DetergentMPNN/data/dummy_splits.pkl'
+        megascale_pdbs: 'DetergentMPNN/examples/pdbs'
 
-        fireprot_csv: "/home/hdieckhaus/scripts/ThermoMPNN/data/fireprot/4_fireprotDB_bestpH.csv"
-        fireprot_splits: "/home/hdieckhaus/scripts/ThermoMPNN/thermompnn/datasets/splits/fireprot_splits.pkl"
-        fireprot_pdbs: "/home/hdieckhaus/scripts/ThermoMPNN/data/fireprot/pdbs/monomers/"
+        fireprot_csv: 'C:\Users\marius\PycharmProjects\DetergentMPNN\data\fireprot\4_fireprotDB_bestpH.csv'
+        fireprot_splits: 'C:\Users\marius\PycharmProjects\DetergentMPNN\thermompnn\datasets\splits\fireprot_splits.pkl'
+        fireprot_pdbs: 'C:\Users\marius\PycharmProjects\DetergentMPNN\data\fireprot\pdbs\monomers'
 
-        misc_data: '/home/hdieckhaus/scripts/ThermoMPNN/data/'
-        rosetta_data: '/home/hdieckhaus/datasets/FINAL_results/'
+        misc_data: 'C:\Users\marius\PycharmProjects\DetergentMPNN\data\'
+        rosetta_data: '\home\hdieckhaus\datasets\FINAL_results\'

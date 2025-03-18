@@ -48,7 +48,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cfg = OmegaConf.merge(OmegaConf.load(args.config), OmegaConf.load(args.local))
-    from train_thermompnn import parse_cfg
+    from thermompnn.train_thermompnn import parse_cfg
     cfg = parse_cfg(cfg)
 
     with torch.no_grad():

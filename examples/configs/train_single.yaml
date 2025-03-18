@@ -4,7 +4,7 @@
 data:
   dataset: megascale
   mut_types: [single]
-  splits: [train, val]
+  splits: [train]
 
 training:
   num_workers: 24

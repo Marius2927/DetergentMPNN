@@ -543,7 +543,7 @@ if __name__ == "__main__":
         help="SSM mode to use (single | additive | epistatic)",
         default="single",
     )
-    parser.add_argument("--pdb", type=str, help="PDB file to run", default="./2OCJ.pdb")
+    parser.add_argument("--pdb", type=str, help="PDB file to run", default="examples/pdbs/1csm.pdb")
     parser.add_argument(
         "--batch_size",
         type=int,
