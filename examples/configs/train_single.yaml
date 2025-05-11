@@ -2,7 +2,7 @@
 # name: single
 
 data:
-  dataset: megascale
+  dataset: detergent
   mut_types: [single]
   splits: [train]
 
@@ -11,7 +11,7 @@ training:
   learn_rate: 0.00001
   epochs: 100
   lr_schedule: true
-  batch_size: 256
+  batch_size: 128
   shuffle: true
 
 model:

@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import os
+import re
 from Bio import pairwise2
 from tqdm import tqdm
 from copy import deepcopy
@@ -1059,6 +1060,113 @@ class ProteinGymDataset(torch.utils.data.Dataset):
 
         tmp = deepcopy(pdb)  # this is hacky but it is needed or else it overwrites all PDBs with the last data point
         return tmp
+
+class DetergentDataset(torch.utils.data.Dataset):
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.pdb_dir = cfg.data_loc.detergent_pdbs
+        self.csv_dir = cfg.data_loc.detergent_csvs
+        self.df = pd.DataFrame()
+        pdb_prefix = 'NZPROT'
+        for file in os.listdir(self.csv_dir):
+            #if file != 'MgPIII_NZPROT_P5GR_ddG__HIF_.csv':
+            next_df = pd.read_csv(os.path.join(self.csv_dir, file))
+            next_df = next_df[(~next_df['mutant'].str.contains(',')) & next_df['mutant'].str.match(r'^[A-Z]\d+[A-Z]$')]
+            if not next_df.empty:
+                next_df = next_df.drop(columns=['DMS_score_bin', 'tags'])
+                mut_str = next_df['mutant'].iloc[0]
+                wtAA, mutAA = mut_str[0], mut_str[-1]
+                mut_pos = int(mut_str[1:-1]) - 1
+                sequence = next_df['mutated_sequence'].iloc[0]
+                #original, pos = next_df['mutant'].iloc[0][0], int(re.sub("[^0-9]", "", next_df['mutant'].iloc[0])) - 1
+                #print(next_df['mutant'].iloc[0])
+                wt_seq = sequence[:mut_pos] + wtAA +sequence[mut_pos+1:]
+                pdb_name = file[file.index(pdb_prefix):]
+                pdb_name = pdb_name[:pdb_name.find('_', pdb_name.find('_') + 1)]
+                next_df['pdb'] = pdb_name
+                next_df['wt_sequence'] = wt_seq
+                self.df = pd.concat([self.df, next_df], ignore_index=True)
+        # incorrect_df = pd.DataFrame(columns = ['mutant', 'sequence', 'aa in position', 'file'])
+        # indices = []
+        self.df.rename(columns={'DMS_score': 'ddG'}, inplace=True)
+        mean_ddg = self.df['ddG'].mean()
+        std_ddg = self.df['ddG'].std()
+        lower_bound = mean_ddg - 3 * std_ddg
+        upper_bound = mean_ddg + 3 * std_ddg
+
+        self.df = self.df[(self.df['ddG'] >= lower_bound) & (self.df['ddG'] <= upper_bound)]
+        self.df = self.df[(self.df['ddG'] >= -20) & (self.df['ddG'] <= 20)]
+        print(self.df)
+
+        # for i in range(len(self.df)):
+        #     if self.df['mutated_sequence'].iloc[i] == self.df['wt_sequence'].iloc[i] and self.df['mutant'].iloc[i][0] != self.df['mutant'].iloc[i][-1]:
+        #         pos = int(re.sub("[^0-9]", "", self.df['mutant'].iloc[i])) - 1
+        #         indices.append(i)
+        #         incorrect_df.loc[len(indices)] = [self.df['mutant'].loc[i]] + [self.df['mutated_sequence'].loc[i]] + [self.df['mutated_sequence'].loc[i][pos]] + [self.df['pdb'].loc[i]]
+        # for i in range(len(indices)):
+        #     self.df = self.df.drop(indices[i])
+        # incorrect_df.to_csv('data/incorrect.tsv', sep="\t")
+
+        self.side_chains = self.cfg.data.get('side_chains', False)
+        self.pdb_names = self.df.pdb.unique()
+        self.pdb_data = {}
+
+        for pdb_name in tqdm(self.pdb_names):
+            if pdb_name!='NZPROT_P5GR':
+                pdb_file = os.path.join(self.pdb_dir, f"{pdb_name}.pdb")
+                pdb = alt_parse_PDB(pdb_file, side_chains=self.side_chains)
+                self.pdb_data[pdb_name] = pdb[0]
+
+        # for i, row in self.df.iterrows():
+        #     original, pos = row.mutant[0], int(re.sub("[^0-9]", "", row.mutant)) - 1
+        #     if original != row.wt_sequence[pos]:
+        #         print(f"Expected WT amino acid {original} at position {pos}, but found {row.wt_sequence[pos]}, offset: {row.wt_sequence[pos-5:pos+5]}")
+
+
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, index):
+        row = self.df.iloc[index]
+        pdb_name = row.pdb
+        pdb = deepcopy(self.pdb_data[pdb_name])
+        pdb_CANONICAL = deepcopy(pdb)
+
+        mut_str = row['mutant']
+        wtAA, mutAA = mut_str[0], mut_str[-1]
+        mut_pos = int(mut_str[1:-1]) - 1  # 0-based index
+        ddG = row.ddG
+
+        # Alignment check
+        if pdb_CANONICAL['seq'][mut_pos] != row.wt_sequence[mut_pos]:
+            print(pdb_name)
+            print("canonical", pdb_CANONICAL['seq'])
+            print("wt", row.wt_sequence)
+            print(f"Expected WT amino acid {wtAA} at position {mut_pos}, but found {pdb_CANONICAL['seq'][mut_pos]}, offset: {pdb_CANONICAL['seq'][mut_pos-5:mut_pos+5]}, offset: {row.wt_sequence[mut_pos-5:mut_pos+5]}")
+
+
+        pdb['mutation'] = Mutation(
+            [mut_pos], [wtAA], [mutAA], ddG, row.pdb[:-1]
+        )
+
+        return deepcopy(pdb)
+
+    # extract nz_numbering_gaps from embl file
+    # def extractNZNumberingGaps(construct_id):
+    #     print(construct_id)
+    #     ! / usr / bin / curl - u: --delegation always - -location - -negotiate \http: // sequoia.nzcorp.net / construct / {construct_id} / download / {construct_id}.embl > {construct_id}.embl
+    #     with open(f'{construct_id}.embl') as fh:
+    #         for line in fh:
+    #             if 'nz_numbering_gaps' in line:
+    #                 nz_numbering_gaps = line.split('=')[1].strip('"\n')
+    #                 return nz_numbering_gaps
+    #     return None
+
+    # -
+    # df['nz_numbering_gaps'] = df['construct_id'].apply(extractNZNumberingGaps)
+    # print(df.shape)
+    # df.head(5)
 
 
 def prebatch_dataset(dataset, workers=1):

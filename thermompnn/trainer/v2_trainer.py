@@ -55,7 +55,7 @@ class TransferModelPLv2(pl.LightningModule):
                     metric.compute()
                 except ValueError:
                     continue
-                self.log(f"{prefix}_{out}_{name}", metric, prog_bar=True, on_step=False, on_epoch=True,
+                self.log(f"{prefix}_{out}_{name}", metric, prog_bar=False, on_step=False, on_epoch=True,
                             batch_size=len(batch))
             
         if mse == 0.0:

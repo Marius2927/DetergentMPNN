@@ -1,8 +1,12 @@
 platform:
   accel: 'gpu'
-  thermompnn_dir: '/content/DetergentMPNN'
+  thermompnn_dir: ''
 
 data_loc:
+        detergent_csvs: 'data/nvs'
+        detergent_splits:
+        detergent_pdbs: 'data/pdbs'
+
         megascale_csv: 'DetergentMPNN/data/dummy.csv'
         megascale_splits: 'DetergentMPNN/data/dummy_splits.pkl'
         megascale_pdbs: 'DetergentMPNN/examples/pdbs'

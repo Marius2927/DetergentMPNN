@@ -1,4 +1,4 @@
-name: ThermoMPNN-D
+name: thermompnn
 channels:
   - bioconda
   - anaconda

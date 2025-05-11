@@ -313,9 +313,11 @@ def expand_additive(ddg):
     return ddg
 
 
-def format_output_single(ddg, S, threshold=-0.5):
+def format_output_single(ddg, S, threshold=-0.25):
     """Converts raw SSM predictions into nice format for analysis"""
     ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
+    all_ddg_values = ddg.cpu().detach().numpy().flatten()
+    print("raw ΔΔG stats:", np.min(all_ddg_values), np.median(all_ddg_values), np.max(all_ddg_values))
     ddg = ddg.cpu().detach().numpy()
     ddg = ddg[:, :20]
 

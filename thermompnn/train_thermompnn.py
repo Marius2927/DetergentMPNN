@@ -3,6 +3,7 @@ from functools import partial
 
 import wandb
 import os
+import shutil
 from torch.utils.data import DataLoader, Subset
 import numpy as np
 
@@ -12,11 +13,16 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 from omegaconf import OmegaConf
 
+sys.path.append('~/DetergentMPNN')
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import torch
 from sklearn.model_selection import KFold
 from thermompnn.parsers import get_v2_dataset
 from thermompnn.trainer.v2_trainer import TransferModelPLv2, TransferModelPLv2Siamese
 from thermompnn.datasets.v2_datasets import tied_featurize_mut
+
+torch.cuda.empty_cache()
 
 
 def collate_fn(batch, side_chains):
@@ -86,63 +92,92 @@ def train(cfg):
 
     train_dataset = get_v2_dataset(cfg)
 
-    if cfg.model.aggregation == 'siamese':
-        model_pl = TransferModelPLv2Siamese(cfg)
-    else:
-        model_pl = TransferModelPLv2(cfg)
-        checkpoint = torch.load("DetergentMPNN/model_weights/ThermoMPNN-ens1.ckpt", map_location="cpu")
-        model_pl.load_state_dict(checkpoint['state_dict'], strict=True)
-        #are_identical = all(torch.equal(model_pl.state_dict()[key], checkpoint['state_dict'][key]) for key in model_pl.state_dict())
-
-    for name, param in model_pl.named_parameters():
-        print(f"{name}: requires_grad = {param.requires_grad}")
-    # additional params, logging, checkpoints for training
-    '''filename = cfg.name + '_{epoch:02d}_{val_ddG_spearman:.02}'
-    monitor = f'val_ddG_spearman'
+    torch.set_float32_matmul_precision('medium')
     
     current_location = os.path.dirname(os.path.realpath(__file__))
     checkpath = os.path.join(current_location, 'checkpoints/')
     if not os.path.isdir(checkpath):
         os.mkdir(checkpath)
 
-    checkpoint_callback = ModelCheckpoint(monitor=monitor, mode='max', dirpath=checkpath, filename=filename)
-    logger = WandbLogger(project=cfg.project, name="test", log_model=False) if cfg.project is not None else None'''
+
+    #logger = WandbLogger(project=cfg.project, name="test", log_model=False) if cfg.project is not None else None
     n_steps = 100
-    
-    csv_logger = CSVLogger("/content/DetergentMPNN/logs", name="training_metrics")
 
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
     dataset_size = len(train_dataset)
     indices = np.arange(dataset_size)
+    print("Using device:", torch.cuda.current_device(), torch.cuda.get_device_name(torch.cuda.current_device()))
+
+    best_score = -float('inf')
+    best_ckpt_path = None
 
     for fold, (train_idx, val_idx) in enumerate(kf.split(indices)):
-      print(f"Fold {fold + 1} / 5")
-      print(train_idx)
-      print(val_idx)
+        print(f"Fold {fold + 1} / 5")
 
-      trainer = pl.Trainer(max_epochs=cfg.training.epochs,
-                        logger=csv_logger,
-                        log_every_n_steps=n_steps,
-                        accelerator=cfg.platform.accel, 
-                        devices=1, 
-                        limit_train_batches=cfg.training.batch_fraction, 
-    )
-    
-      train_loader = DataLoader(Subset(train_dataset, train_idx), 
-                                  collate_fn= partial(collate_fn, side_chains=cfg.data.side_chains),
-                                  shuffle=cfg.training.shuffle, 
-                                  num_workers=cfg.training.num_workers, 
-                                  batch_size=cfg.training.batch_size)
-      val_loader = DataLoader(Subset(train_dataset, val_idx), 
-                                  collate_fn=partial(collate_fn, side_chains=cfg.data.side_chains),
-                                  shuffle=False, 
-                                  num_workers=cfg.training.num_workers, 
-                                  batch_size=cfg.training.batch_size)
+        if cfg.model.aggregation == 'siamese':
+            model_pl = TransferModelPLv2Siamese(cfg)
+        else:
+            model_pl = TransferModelPLv2(cfg)
+            checkpoint = torch.load("model_weights/ThermoMPNN-ens1.ckpt", map_location="cpu")
+            model_pl.load_state_dict(checkpoint['state_dict'], strict=True)
+        for name, param in model_pl.named_parameters():
+            print(f"{name}: requires_grad = {param.requires_grad}")
+        # additional params, logging, checkpoints for training
+        filename = cfg.name + '_{epoch:02d}_{val_ddG_spearman:.02}'
+        monitor = f'val_ddG_spearman'
 
-      
-      trainer.fit(model_pl, train_loader, val_loader) #, ckpt_path=cfg.training.ckpt)
-    torch.save(model_pl.state_dict(), "detergent_mpnn_weights.ckpt")
+        fold_ckpt_path = os.path.join(checkpath, f"fold{fold + 1}")
+        os.makedirs(fold_ckpt_path, exist_ok=True)
+        checkpoint_callback = ModelCheckpoint(
+            monitor=monitor,
+            mode='max',
+            dirpath=fold_ckpt_path,
+            filename=f'{cfg.name}_fold{fold + 1}_' + '{epoch:02d}_{val_ddG_spearman:.2f}'
+        )
+
+        csv_logger = CSVLogger("logs", name=f"training_fold{fold + 1}")
+
+        trainer = pl.Trainer(
+            callbacks=[checkpoint_callback],
+            max_epochs=cfg.training.epochs,
+            logger=csv_logger,
+            log_every_n_steps=n_steps,
+            accelerator=cfg.platform.accel,
+            devices=1,
+            limit_train_batches=cfg.training.batch_fraction
+        )
+
+        train_loader = DataLoader(
+            Subset(train_dataset, train_idx),
+            collate_fn=partial(collate_fn, side_chains=cfg.data.side_chains),
+            shuffle=cfg.training.shuffle,
+            num_workers=cfg.training.num_workers,
+            batch_size=cfg.training.batch_size
+        )
+
+        val_loader = DataLoader(
+            Subset(train_dataset, val_idx),
+            collate_fn=partial(collate_fn, side_chains=cfg.data.side_chains),
+            shuffle=False,
+            num_workers=cfg.training.num_workers,
+            batch_size=cfg.training.batch_size
+        )
+
+        trainer.fit(model_pl, train_loader, val_loader)
+
+        ckpt_path = checkpoint_callback.best_model_path
+        ckpt_score = checkpoint_callback.best_model_score.item()
+
+        print(f"Best checkpoint for fold {fold + 1}: {ckpt_path} (score = {ckpt_score:.4f})")
+
+        if ckpt_score > best_score:
+            best_score = ckpt_score
+            best_ckpt_path = ckpt_path
+
+    print(f"Best overall model from fold checkpoint: {best_ckpt_path}")
+    #shutil.copyfile(best_ckpt_path, "detergent_mpnn_weights_best_fold.ckpt")
+    os.rename(best_ckpt_path, "detergent_mpnn_weights_best_fold.ckpt")
 
 
 if __name__ == "__main__":
