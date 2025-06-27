@@ -15,14 +15,10 @@ def get_model(mode, config):
     cwd = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
     if (mode.lower() == "single") or (mode.lower() == "additive"):
-        #ckpt = torch.load("model_weights/detergent_mpnn_weights.ckpt", map_location="cpu")
-        #ckpt['pytorch-lightning_version'] = '2.1.2'
-        #torch.save(ckpt, "model_weights/detergent_mpnn_weights_fix.ckpt")
-        model_path = os.path.join(cwd, "detergent_mpnn_weights_best_fold.ckpt")
+        model_path = os.path.join(cwd, "data/test_fold5_epoch=98_val_ddG_spearman=0.08.ckpt")
         return TransferModelPLv2.load_from_checkpoint(model_path, cfg=config).model
-        # model = TransferModelPLv2(cfg=config)
-        # model.load_state_dict(torch.load(os.path.join(cwd, "model_weights//test_fold5_epoch=00_val_ddG_spearman=0.01.ckpt"), weights_only=False))
-        # return model
+        #model_path = os.path.join(cwd, "model_weights/ThermoMPNN-ens1.ckpt")
+        #return TransferModelPLv2.load_from_checkpoint(model_path, cfg=config).model
 
     elif mode.lower() == "epistatic":
         model_path = os.path.join(cwd, "model_weights/ThermoMPNN-D-ens1.ckpt")

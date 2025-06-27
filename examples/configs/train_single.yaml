@@ -13,6 +13,7 @@ training:
   lr_schedule: true
   batch_size: 128
   shuffle: true
+  cv: backbone
 
 model:
   hidden_dims: [64, 32]

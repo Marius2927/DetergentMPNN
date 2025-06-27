@@ -1069,7 +1069,7 @@ class DetergentDataset(torch.utils.data.Dataset):
         self.df = pd.DataFrame()
         pdb_prefix = 'NZPROT'
         for file in os.listdir(self.csv_dir):
-            #if file != 'MgPIII_NZPROT_P5GR_ddG__HIF_.csv':
+            #if not (file.startswith('NZPROT_P64FUU') or file.startswith('NZPROT_P53HFQ')):
             next_df = pd.read_csv(os.path.join(self.csv_dir, file))
             next_df = next_df[(~next_df['mutant'].str.contains(',')) & next_df['mutant'].str.match(r'^[A-Z]\d+[A-Z]$')]
             if not next_df.empty:
@@ -1078,34 +1078,22 @@ class DetergentDataset(torch.utils.data.Dataset):
                 wtAA, mutAA = mut_str[0], mut_str[-1]
                 mut_pos = int(mut_str[1:-1]) - 1
                 sequence = next_df['mutated_sequence'].iloc[0]
-                #original, pos = next_df['mutant'].iloc[0][0], int(re.sub("[^0-9]", "", next_df['mutant'].iloc[0])) - 1
-                #print(next_df['mutant'].iloc[0])
                 wt_seq = sequence[:mut_pos] + wtAA +sequence[mut_pos+1:]
                 pdb_name = file[file.index(pdb_prefix):]
                 pdb_name = pdb_name[:pdb_name.find('_', pdb_name.find('_') + 1)]
                 next_df['pdb'] = pdb_name
                 next_df['wt_sequence'] = wt_seq
+                mean_ddg = next_df['DMS_score'].mean()
+                std_ddg = next_df['DMS_score'].std()
+                lower_bound = mean_ddg - 3 * std_ddg
+                upper_bound = mean_ddg + 3 * std_ddg
+                next_df = next_df[(next_df['DMS_score'] >= lower_bound) & (next_df['DMS_score'] <= upper_bound)]
+                next_df = next_df[(next_df['DMS_score'] >= -20) & (next_df['DMS_score'] <= 20)]
                 self.df = pd.concat([self.df, next_df], ignore_index=True)
         # incorrect_df = pd.DataFrame(columns = ['mutant', 'sequence', 'aa in position', 'file'])
         # indices = []
         self.df.rename(columns={'DMS_score': 'ddG'}, inplace=True)
-        mean_ddg = self.df['ddG'].mean()
-        std_ddg = self.df['ddG'].std()
-        lower_bound = mean_ddg - 3 * std_ddg
-        upper_bound = mean_ddg + 3 * std_ddg
-
-        self.df = self.df[(self.df['ddG'] >= lower_bound) & (self.df['ddG'] <= upper_bound)]
-        self.df = self.df[(self.df['ddG'] >= -20) & (self.df['ddG'] <= 20)]
-        print(self.df)
-
-        # for i in range(len(self.df)):
-        #     if self.df['mutated_sequence'].iloc[i] == self.df['wt_sequence'].iloc[i] and self.df['mutant'].iloc[i][0] != self.df['mutant'].iloc[i][-1]:
-        #         pos = int(re.sub("[^0-9]", "", self.df['mutant'].iloc[i])) - 1
-        #         indices.append(i)
-        #         incorrect_df.loc[len(indices)] = [self.df['mutant'].loc[i]] + [self.df['mutated_sequence'].loc[i]] + [self.df['mutated_sequence'].loc[i][pos]] + [self.df['pdb'].loc[i]]
-        # for i in range(len(indices)):
-        #     self.df = self.df.drop(indices[i])
-        # incorrect_df.to_csv('data/incorrect.tsv', sep="\t")
+        print(len(self.df))
 
         self.side_chains = self.cfg.data.get('side_chains', False)
         self.pdb_names = self.df.pdb.unique()
@@ -1116,12 +1104,6 @@ class DetergentDataset(torch.utils.data.Dataset):
                 pdb_file = os.path.join(self.pdb_dir, f"{pdb_name}.pdb")
                 pdb = alt_parse_PDB(pdb_file, side_chains=self.side_chains)
                 self.pdb_data[pdb_name] = pdb[0]
-
-        # for i, row in self.df.iterrows():
-        #     original, pos = row.mutant[0], int(re.sub("[^0-9]", "", row.mutant)) - 1
-        #     if original != row.wt_sequence[pos]:
-        #         print(f"Expected WT amino acid {original} at position {pos}, but found {row.wt_sequence[pos]}, offset: {row.wt_sequence[pos-5:pos+5]}")
-
 
 
     def __len__(self):

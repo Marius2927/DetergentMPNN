@@ -62,6 +62,23 @@ class TransferModelPLv2(pl.LightningModule):
             return None
         return mse
 
+    def predict_ddg_batch(self, batch):
+        self.eval()
+
+        if self.cfg.model.subtract_mut and ('double' in self.cfg.data.mut_types):
+            X, S, mask, lengths, chain_M, chain_encoding_all, residue_idx, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask = batch
+            fwd_preds, _ = self(X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs,
+                                mut_mutant_AAs, mut_ddGs, atom_mask)
+            backwd_preds, _ = self(X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_mutant_AAs,
+                                   mut_wildtype_AAs, mut_ddGs, atom_mask)
+            preds = fwd_preds - backwd_preds
+        else:
+            X, S, mask, lengths, chain_M, chain_encoding_all, residue_idx, mut_positions, mut_wildtype_AAs, mut_mutant_AAs, mut_ddGs, atom_mask = batch
+            preds, _ = self(X, S, mask, chain_M, residue_idx, chain_encoding_all, mut_positions, mut_wildtype_AAs,
+                            mut_mutant_AAs, mut_ddGs, atom_mask)
+
+        return preds.detach().cpu(), mut_ddGs.detach().cpu()
+
     def training_step(self, batch, batch_idx):
         return self.shared_eval(batch, batch_idx, 'train')
 

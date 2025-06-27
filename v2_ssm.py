@@ -313,7 +313,7 @@ def expand_additive(ddg):
     return ddg
 
 
-def format_output_single(ddg, S, threshold=-0.25):
+def format_output_single(ddg, S, threshold=float('inf')):
     """Converts raw SSM predictions into nice format for analysis"""
     ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
     all_ddg_values = ddg.cpu().detach().numpy().flatten()
@@ -553,7 +553,7 @@ if __name__ == "__main__":
         default=256,
     )
     parser.add_argument(
-        "--out", type=str, help="output mutation prefix to save csv", default="ssm"
+        "--out", type=str, help="output mutation prefix to save csv", default="ssm_site_2"
     )
     parser.add_argument(
         "--chains",
